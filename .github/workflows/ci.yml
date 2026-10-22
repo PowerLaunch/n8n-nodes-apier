@@ -19,7 +19,9 @@ jobs:
         with:
           node-version: 22
       # No lockfile is committed yet (see the README); npm install resolves the exact pinned devDependencies.
-      - run: npm install --no-audit --no-fund
+      # --legacy-peer-deps: without it npm's peer resolution dies with "Cannot read properties of null
+      # (reading 'edgesOut')" on this tree (runs 39771021337 and 39771121220).
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
