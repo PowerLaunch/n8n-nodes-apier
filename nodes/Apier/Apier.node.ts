@@ -301,10 +301,12 @@ export class Apier implements INodeType {
 	}
 }
 
-/** Stable across n8n's Retry On Fail, which runs execute() again within the same execution,
- *  so a retried create after a timeout replays the stored answer instead of making a second subscription. */
+/** Stable across n8n's Retry On Fail, which runs execute() again within the same run, so a retried
+ *  create after a timeout replays the stored answer instead of making a second subscription. The run
+ *  index keeps keys distinct when the node runs more than once in one execution (Loop Over Items). */
 function idempotencyKey(ctx: IExecuteFunctions, itemIndex: number, operation: string): string {
-	return `n8n:${ctx.getExecutionId()}:${ctx.getNode().id}:${itemIndex}:${operation}`;
+	const run = ctx.getWorkflowDataProxy(itemIndex).$thisRunIndex;
+	return `n8n:${ctx.getExecutionId()}:${ctx.getNode().id}:${run}:${itemIndex}:${operation}`;
 }
 
 /** Drops empty fields, checks the organisation number and adds a timezone to picked dates,
