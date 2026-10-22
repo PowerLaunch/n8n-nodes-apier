@@ -47,8 +47,5 @@
     "n8n-workflow": "2.16.0",
     "typescript": "5.9.3",
     "vitest": "4.1.12"
-  },
-  "peerDependencies": {
-    "n8n-workflow": "*"
   }
 }
