@@ -15,7 +15,7 @@ An [n8n](https://n8n.io) community node for [Apier](https://www.apier.no). It le
 
 Every company answer keeps Apier's `_meta` block (rulebook version, data freshness, source), so a later step can show where the answer came from.
 
-**Apier Trigger** polls `GET /api/v1/changes` and starts the workflow for each new change from one source, optionally for one organisation or one entity type (for example `annual_accounts` for new annual accounts filings). When it is first turned on it starts from that moment and does not replay older changes. A poll reads at most 5,000 changes; if more than that can arrive between two polls, filter by organisation or entity type.
+**Apier Trigger** polls `GET /api/v1/changes` and starts the workflow for each new change from one source, optionally for one organisation or one entity type (for example `annual_accounts` for new annual accounts filings). When it is first turned on it starts from that moment and does not replay older changes. Each poll re-reads the last five minutes, so a change that is saved late is still delivered, and a change it has already delivered is not delivered again. A poll reads at most 5,000 changes; if more than that can arrive between two polls, filter by organisation or entity type.
 
 Without an organisation number, changes to board members, signing rules and prokura are withheld by the API. Set an organisation number to receive them.
 

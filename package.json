@@ -23,7 +23,6 @@
   "engines": {
     "node": ">=20.15"
   },
-  "main": "index.js",
   "files": [
     "dist"
   ],

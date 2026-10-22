@@ -29,6 +29,35 @@ export function normaliseOrgNumber(ctx: ApierContext, raw: string, itemIndex?: n
 	return org;
 }
 
+const HAS_OFFSET = /(Z|[+-]\d{2}:?\d{2})$/i;
+
+/** Offset of `timeZone` from UTC, in milliseconds, at the instant `utcMs`. */
+function zoneOffsetMs(utcMs: number, timeZone: string): number {
+	const parts = new Intl.DateTimeFormat('en-US', {
+		timeZone,
+		hourCycle: 'h23',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+	}).formatToParts(new Date(utcMs));
+	const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+	const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+	return asUtc - Math.floor(utcMs / 1000) * 1000;
+}
+
+/** /api/v1/changes rejects a time without a timezone. n8n's date picker gives a wall-clock time
+ *  ("2026-10-22T10:00:00"), which is read in the workflow's timezone and sent as UTC. */
+export function toRfc3339(value: string, timeZone: string): string {
+	if (HAS_OFFSET.test(value)) return value;
+	const wallAsUtc = Date.parse(`${value}Z`);
+	if (Number.isNaN(wallAsUtc)) return value; // left for the API to reject with VALIDATION_FAILED
+	const first = wallAsUtc - zoneOffsetMs(wallAsUtc, timeZone);
+	return new Date(wallAsUtc - zoneOffsetMs(first, timeZone)).toISOString(); // second pass settles DST edges
+}
+
 export async function apierApiRequest(
 	this: ApierContext,
 	method: IHttpRequestMethods,

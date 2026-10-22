@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import type {
 	IDataObject,
 	IExecuteFunctions,
@@ -8,7 +7,7 @@ import type {
 } from 'n8n-workflow';
 import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
-import { apierApiRequest, CHANGE_SOURCES, getChanges, normaliseOrgNumber, unwrap } from './GenericFunctions';
+import { apierApiRequest, CHANGE_SOURCES, getChanges, normaliseOrgNumber, toRfc3339, unwrap } from './GenericFunctions';
 
 const sourceOptions = CHANGE_SOURCES.map((value) => ({
 	name: {
@@ -271,18 +270,20 @@ export class Apier implements INodeType {
 							'/api/v1/subscriptions',
 							{ webhook_url: this.getNodeParameter('webhookUrl', i) as string, filter },
 							undefined,
-							{ 'Idempotency-Key': randomUUID() },
+							{ 'Idempotency-Key': idempotencyKey(this, i, operation) },
 						),
 					);
 				} else if (operation === 'delete') {
 					const id = encodeURIComponent(this.getNodeParameter('subscriptionId', i) as string);
 					result = unwrap(
 						await apierApiRequest.call(this, 'DELETE', `/api/v1/subscriptions/${id}`, undefined, undefined, {
-							'Idempotency-Key': randomUUID(),
+							'Idempotency-Key': idempotencyKey(this, i, operation),
 						}),
 					);
 				} else {
-					result = unwrap(await apierApiRequest.call(this, 'GET', '/api/v1/subscriptions'));
+					// data is { data: SubscriptionRecord[] }: one output item per subscription
+					const list = (await apierApiRequest.call(this, 'GET', '/api/v1/subscriptions')).data as IDataObject | undefined;
+					result = Array.isArray(list?.data) ? (list?.data as IDataObject[]) : [];
 				}
 
 				const rows = Array.isArray(result) ? result : [result];
@@ -300,12 +301,21 @@ export class Apier implements INodeType {
 	}
 }
 
-/** Drops empty fields and checks the organisation number, so the API never sees an empty filter value. */
+/** Stable across n8n's Retry On Fail, which runs execute() again within the same execution,
+ *  so a retried create after a timeout replays the stored answer instead of making a second subscription. */
+function idempotencyKey(ctx: IExecuteFunctions, itemIndex: number, operation: string): string {
+	return `n8n:${ctx.getExecutionId()}:${ctx.getNode().id}:${itemIndex}:${operation}`;
+}
+
+/** Drops empty fields, checks the organisation number and adds a timezone to picked dates,
+ *  so the API never sees an empty or offset-less filter value. */
 function changeFilters(ctx: IExecuteFunctions, raw: IDataObject, itemIndex: number): IDataObject {
 	const filters: IDataObject = {};
 	for (const [key, value] of Object.entries(raw)) {
 		if (value === '' || value === undefined || value === null) continue;
-		filters[key] = key === 'entity_id' ? normaliseOrgNumber(ctx, String(value), itemIndex) : value;
+		if (key === 'entity_id') filters[key] = normaliseOrgNumber(ctx, String(value), itemIndex);
+		else if (key === 'from' || key === 'to') filters[key] = toRfc3339(String(value), ctx.getTimezone());
+		else filters[key] = value;
 	}
 	return filters;
 }
